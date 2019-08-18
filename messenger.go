@@ -14,7 +14,7 @@ type Messenger struct {
   quit          chan struct{}
 }
 
-func (m *Messenger) NewMessenger() {
+func NewMessenger() *Messenger {
   messenger := &Messenger{
     Clients: make(ClientPool),
     Register: make(ClientChan),
