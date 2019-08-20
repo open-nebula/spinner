@@ -1,3 +1,4 @@
+// Nebula Spinner server to maintain socket connections to Captains.
 package spinner
 
 import (
@@ -8,25 +9,36 @@ import (
   "strconv"
 )
 
-type Spinner struct {
-  Router    *mux.Router
+// Server for the Nebula Spinner
+type Server interface {
+  // Given a port of 0, assigns a free port to the server.
+  Run(port int)
 }
 
-func New() *Spinner {
+type server struct {
+  router    *mux.Router
+  messenger Messenger
+}
+
+func New() Server {
   router := mux.NewRouter().StrictSlash(true)
-
-  router.HandleFunc("/spin", Spin()).Name("Spin")
-
-  return &Spinner{
-    Router: router,
+  messenger := NewMessenger()
+  router.HandleFunc("/join", join(messenger)).Name("Join")
+  router.HandleFunc("/spin", spin(messenger)).Name("Spin")
+  go messenger.Run()
+  return &server{
+    router: router,
+    messenger: messenger,
   }
 }
 
-func (s *Spinner) Run(port int) {
+// Runs the spinner server.
+// If given a port value of 0, then finds a free port.
+func (s *server) Run(port int) {
   var err error
   if port == 0 {
     port, err = freeport.GetFreePort()
     if err != nil {log.Println(err); return}
   }
-  log.Fatal(http.ListenAndServe(":" + strconv.Itoa(port), s.Router))
+  log.Fatal(http.ListenAndServe(":" + strconv.Itoa(port), s.router))
 }

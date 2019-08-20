@@ -6,7 +6,7 @@ import (
   "log"
 )
 
-func Spin() func(http.ResponseWriter, *http.Request) {
+func join() func(http.ResponseWriter, *http.Request) {
   messenger := NewMessenger()
   return func(w http.ResponseWriter, r *http.Request) {
     conn, err := messenger.Upgrader.Upgrade(w,r,nil)

@@ -4,4 +4,4 @@ import (
   "github.com/open-nebula/spinner"
 )
 
-func main() {spinner.New().Run(0)}
+func main() {spinner.New().Run(5912)}

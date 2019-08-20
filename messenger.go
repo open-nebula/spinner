@@ -4,47 +4,53 @@ import (
   "github.com/gorilla/websocket"
 )
 
-type Messenger struct {
-  Clients       ClientPool
+// Relay messages amongst connections
+type Messenger interface {
+  // Open the messenger service. Is open by default.
+  Open()
+  // Operate the messenger service
+  Run()
+  // Close and quit the messenger service. Can be re-opened and restarted.
+  Close()
+}
 
-  Register      ClientChan
-  Unregister    ClientChan
+type messenger struct {
+  clients       ClientPool
 
-  Upgrader      websocket.Upgrader
+  register      ClientChan
+  unregister    ClientChan
+
+  upgrader      websocket.Upgrader
   quit          chan struct{}
 }
 
-func NewMessenger() *Messenger {
-  messenger := &Messenger{
-    Clients: make(ClientPool),
-    Register: make(ClientChan),
-    Unregister: make(ClientChan),
-    Upgrader: websocket.Upgrader{
+func NewMessenger() Messenger {
+  return &messenger{
+    clients: make(ClientPool),
+    register: make(ClientChan),
+    unregister: make(ClientChan),
+    upgrader: websocket.Upgrader{
       ReadBufferSize: 1024,
       WriteBufferSize: 1024,
     },
     quit: make(chan struct{}),
   }
-  messenger.Run()
-  return messenger
 }
 
-func (m *Messenger) Run() {
-  go func() {
-    for {
-      select {
-      case client := <- m.Register:
-        m.Clients[client] = true
-      case client := <- m.Unregister:
-        if _, ok := m.Clients[client]; ok {
-          delete(m.Clients, client)
-        }
-      case <- m.quit:
-        return
+func (m *messenger) Run() {
+  for {
+    select {
+    case client := <- m.register:
+      m.clients[client] = true
+    case client := <- m.unregister:
+      if _, ok := m.clients[client]; ok {
+        delete(m.clients, client)
       }
+    case <- m.quit:
+      return
     }
-  }()
+  }
 }
 
-func (m *Messenger) Close() {close(m.quit)}
-func (m *Messenger) Open() {m.quit = make(chan struct{})}
+func (m *messenger) Close() {close(m.quit)}
+func (m *messenger) Open() {m.quit = make(chan struct{})}
