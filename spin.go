@@ -17,3 +17,7 @@ func join() func(http.ResponseWriter, *http.Request) {
     NewClient(messenger, conn)
   }
 }
+
+func spin() func(http.ResponseWriter, *http.Request) {
+  // Send container to captain
+}
