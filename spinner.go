@@ -17,7 +17,7 @@ type Server interface {
 
 type server struct {
   router    *mux.Router
-  messenger Messenger
+  messenger *messenger
 }
 
 // Produces a new Server interface of struct server

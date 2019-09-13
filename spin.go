@@ -6,10 +6,15 @@ import (
   "log"
 )
 
+const (
+  pingPeriod = 20
+  writeWait = 10
+)
+
 // On request adds client through the messenger
-func join(messenger Messenger) func(http.ResponseWriter, *http.Request) {
+func join(messenger *messenger) func(http.ResponseWriter, *http.Request) {
   return func(w http.ResponseWriter, r *http.Request) {
-    conn, err := messenger.Upgrader.Upgrade(w,r,nil)
+    conn, err := messenger.upgrader.Upgrade(w,r,nil)
     if err != nil {
       log.Println(err)
       return
@@ -20,14 +25,14 @@ func join(messenger Messenger) func(http.ResponseWriter, *http.Request) {
 }
 
 // Send a container to the messenger to pass on
-func spin(messenger Messenger) func(http.ResponseWriter, *http.Request) {
+func spin(messenger *messenger) func(http.ResponseWriter, *http.Request) {
   return func(w http.ResponseWriter, r *http.Request) {
-    conn, err := messenge.r Upgrader.Upgrade(w,r,nil)
+    conn, err := messenger.upgrader.Upgrade(w,r,nil)
     if err != nil {
       log.Println(err)
       return
     }
     requester := NewRequester(messenger, conn)
-    requeter.Register()
+    requester.Register()
   }
 }

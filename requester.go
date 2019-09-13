@@ -21,19 +21,14 @@ type Requester interface {
 }
 
 type requester struct {
-  messenger     Messenger
+  messenger     *messenger
   conn          *websocket.Conn
   responses     spinresp.ResponseChan
   quit          chan struct{}
 }
 
-const (
-  pingPeriod = 20
-  writeWait = 10
-)
-
 // Create new Client interface of client struct
-func NewRequester(m Messenger, conn *websocket.Conn) Requester {
+func NewRequester(m *messenger, conn *websocket.Conn) Requester {
   return &requester{
     messenger: m,
     conn: conn,
@@ -44,7 +39,7 @@ func NewRequester(m Messenger, conn *websocket.Conn) Requester {
 // Get messages from the requester
 func (r *requester) Read() {
   defer func(){
-    c.conn.Close()
+    r.conn.Close()
   }()
   for {
     var config dockercntrl.Config
@@ -64,29 +59,29 @@ func (r *requester) Write() {
   ticker := time.NewTicker(pingPeriod)
   defer func(){
     ticker.Stop()
-    c.conn.Close()
+    r.conn.Close()
   }()
   for {
     select {
     case resp, ok := <- r.responses:
-      c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+      r.conn.SetWriteDeadline(time.Now().Add(writeWait))
       if !ok {
-        c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+        r.conn.WriteMessage(websocket.CloseMessage, []byte{})
         return
       }
-      err := c.conn.WriteJSON(resp)
+      err := r.conn.WriteJSON(resp)
       if err != nil {
         log.Println(err)
-        c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+        r.conn.WriteMessage(websocket.CloseMessage, []byte{})
         return
       }
     case <- ticker.C:
-      c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-      if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+      r.conn.SetWriteDeadline(time.Now().Add(writeWait))
+      if err := r.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
         log.Println(err)
         return
       }
-    case <- c.quit:
+    case <- r.quit:
       return
     }
   }
@@ -94,8 +89,8 @@ func (r *requester) Write() {
 
 // Register requester
 func (r *requester) Register() {
-  go c.Read()
+  go r.Read()
 }
 
 // Close the client connection
-func (r *requester) Quit() {close(c.quit)}
+func (r *requester) Quit() {close(r.quit)}

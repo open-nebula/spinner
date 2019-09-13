@@ -15,7 +15,7 @@ type Messenger interface {
   // Close and quit the messenger service. Can be re-opened and restarted.
   Close()
   // Container Connection
-  ContainerConnect(*dockercntrl.Config) ResponseChan
+  ContainerConnect(*dockercntrl.Config) spinresp.ResponseChan
 }
 
 type message struct {
@@ -24,10 +24,10 @@ type message struct {
 }
 
 type messenger struct {
-  clients       ClientPool
+  clients       clientPool
 
-  register      ClientChan
-  unregister    ClientChan
+  register      clientChan
+  unregister    clientChan
 
   message        chan message
 
@@ -36,12 +36,12 @@ type messenger struct {
 }
 
 // Create a new Messenger interface of messenger struct
-func NewMessenger() Messenger {
+func NewMessenger() *messenger {
   return &messenger{
-    clients: make(ClientPool),
-    register: make(ClientChan),
-    unregister: make(ClientChan),
-    message: make(chan message)
+    clients: make(clientPool),
+    register: make(clientChan),
+    unregister: make(clientChan),
+    message: make(chan message),
     upgrader: websocket.Upgrader{
       ReadBufferSize: 1024,
       WriteBufferSize: 1024,
@@ -77,8 +77,8 @@ func (m *messenger) Run() {
         running[chosen]++
       } else {
         mes.response <- spinresp.Response{
-          code: spinresp.NoCaptainsAvailable,
-          data: "The spinner found no available captians.",
+          Code: spinresp.NoCaptainsAvailable,
+          Data: "The spinner found no available captians.",
         }
       }
     case <- m.quit:
@@ -88,7 +88,7 @@ func (m *messenger) Run() {
 }
 
 func (m *messenger) ContainerConnect(config *dockercntrl.Config) spinresp.ResponseChan {
-  response = make(spinresp.ResponseChan)
+  response := make(spinresp.ResponseChan)
   m.message <- message{
     config: config,
     response: response,

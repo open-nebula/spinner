@@ -1,7 +1,6 @@
 package spinner
 
 import (
-  "github.com/open-nebula/captain/dockercntrl"
   "github.com/open-nebula/spinner/spinresp"
   "github.com/gorilla/websocket"
   "github.com/google/uuid"
@@ -22,23 +21,18 @@ type Client interface {
 }
 
 type client struct {
-  messenger     Messenger
+  messenger     *messenger
   conn          *websocket.Conn
-  spinup        chan *dockercntrl.Config
+  spinup        chan message
   responses     map[uuid.UUID]spinresp.ResponseChan
   quit          chan struct{}
 }
-
-const (
-  pingPeriod = 20
-  writeWait = 10
-)
 
 type clientPool   map[*client]bool
 type clientChan   chan *client
 
 // Create new Client interface of client struct
-func NewClient(m Messenger, conn *websocket.Conn) Client {
+func NewClient(m *messenger, conn *websocket.Conn) Client {
   return &client{
     messenger: m,
     conn: conn,
