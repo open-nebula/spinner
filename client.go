@@ -92,11 +92,11 @@ func (c *client) Write() {
       }
       c.responses[*message.config.Id] = message.response
     case <- ticker.C:
-      c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-      if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-        log.Println(err)
-        return
-      }
+      // c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+      // if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+      //   log.Println(err)
+      //   return
+      // }
     case <- c.quit:
       return
     }
@@ -108,6 +108,7 @@ func (c *client) Register() {
   c.messenger.register <- c
   go c.Read()
   go c.Write()
+  log.Println("Client registered")
 }
 
 // Close the client connection
