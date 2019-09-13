@@ -20,6 +20,7 @@ type server struct {
   messenger Messenger
 }
 
+// Produces a new Server interface of struct server
 func New() Server {
   router := mux.NewRouter().StrictSlash(true)
   messenger := NewMessenger()

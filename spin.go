@@ -6,18 +6,28 @@ import (
   "log"
 )
 
-func join() func(http.ResponseWriter, *http.Request) {
-  messenger := NewMessenger()
+// On request adds client through the messenger
+func join(messenger Messenger) func(http.ResponseWriter, *http.Request) {
   return func(w http.ResponseWriter, r *http.Request) {
     conn, err := messenger.Upgrader.Upgrade(w,r,nil)
     if err != nil {
       log.Println(err)
       return
     }
-    NewClient(messenger, conn)
+    client := NewClient(messenger, conn)
+    client.Register()
   }
 }
 
-func spin() func(http.ResponseWriter, *http.Request) {
-  // Send container to captain
+// Send a container to the messenger to pass on
+func spin(messenger Messenger) func(http.ResponseWriter, *http.Request) {
+  return func(w http.ResponseWriter, r *http.Request) {
+    conn, err := messenge.r Upgrader.Upgrade(w,r,nil)
+    if err != nil {
+      log.Println(err)
+      return
+    }
+    requester := NewRequester(messenger, conn)
+    requeter.Register()
+  }
 }

@@ -4,13 +4,12 @@ import (
   "github.com/open-nebula/captain/dockercntrl"
   "github.com/open-nebula/spinner/spinresp"
   "github.com/gorilla/websocket"
-  "github.com/google/uuid"
   "time"
   "log"
 )
 
-// Single client (Captain) connection
-type Client interface {
+// Single container requestor interface
+type Requester interface {
   // Accept reading from the client
   Read()
   // Accept writing from the client
@@ -21,11 +20,10 @@ type Client interface {
   Quit()
 }
 
-type client struct {
+type requester struct {
   messenger     Messenger
   conn          *websocket.Conn
-  spinup        chan *dockercntrl.Config
-  responses     map[uuid.UUID]spinresp.ResponseChan
+  responses     spinresp.ResponseChan
   quit          chan struct{}
 }
 
@@ -34,45 +32,35 @@ const (
   writeWait = 10
 )
 
-type clientPool   map[*client]bool
-type clientChan   chan *client
-
 // Create new Client interface of client struct
-func NewClient(m Messenger, conn *websocket.Conn) Client {
-  return &client{
+func NewRequester(m Messenger, conn *websocket.Conn) Requester {
+  return &requester{
     messenger: m,
     conn: conn,
-    spinup: make(chan message),
-    responses: make(map[uuid.UUID]spinresp.ResponseChan),
     quit: make(chan struct{}),
   }
 }
 
-// Get messages from the client
-func (c *client) Read() {
+// Get messages from the requester
+func (r *requester) Read() {
   defer func(){
-    c.messenger.unregister <- c
     c.conn.Close()
   }()
   for {
-    var resp spinresp.Response
-    err := c.conn.ReadJSON(&resp)
+    var config dockercntrl.Config
+    err := r.conn.ReadJSON(&config)
     if err != nil {
       log.Println(err)
       return
     }
-    if resp.Id != nil {return}
-    if respchan, ok := c.responses[*resp.Id]; ok {
-      respchan <- resp
-      if resp.Code < 0 {delete(c.responses, *resp.Id); return}
-    } else {return}
+    respchan := r.messenger.ContainerConnect(&config)
+    r.responses = respchan
+    go r.Write() // TODO: Must be idempotent
   }
 }
 
-// Send messages to the client.
-// Currently messages are only of the type dockercntrl.Config
-// as a request to spin up a container of that type.
-func (c *client) Write() {
+// Send messages to the requester.
+func (r *requester) Write() {
   ticker := time.NewTicker(pingPeriod)
   defer func(){
     ticker.Stop()
@@ -80,23 +68,18 @@ func (c *client) Write() {
   }()
   for {
     select {
-    case message, ok := <- c.spinup:
+    case resp, ok := <- r.responses:
       c.conn.SetWriteDeadline(time.Now().Add(writeWait))
       if !ok {
         c.conn.WriteMessage(websocket.CloseMessage, []byte{})
         return
       }
-      if message.config.Id == nil {
-        identifier := uuid.New()
-        message.config.Id = &identifier
-      }
-      err := c.conn.WriteJSON(message.config)
+      err := c.conn.WriteJSON(resp)
       if err != nil {
         log.Println(err)
         c.conn.WriteMessage(websocket.CloseMessage, []byte{})
         return
       }
-      c.responses[*message.config.Id] = message.response
     case <- ticker.C:
       c.conn.SetWriteDeadline(time.Now().Add(writeWait))
       if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
@@ -109,12 +92,10 @@ func (c *client) Write() {
   }
 }
 
-// Register client with messenger and accept read/writes.
-func (c *client) Register() {
-  c.messenger.register <- c
+// Register requester
+func (r *requester) Register() {
   go c.Read()
-  go c.Write()
 }
 
 // Close the client connection
-func (c *client) Quit() {close(c.quit)}
+func (r *requester) Quit() {close(c.quit)}
