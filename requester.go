@@ -3,17 +3,15 @@ package spinner
 import (
   "github.com/open-nebula/captain/dockercntrl"
   "github.com/open-nebula/spinner/spinresp"
-  "github.com/gorilla/websocket"
-  "time"
+  "github.com/open-nebula/comms"
+  "github.com/mitchellh/mapstructure"
   "log"
 )
 
 // Single container requestor interface
 type Requester interface {
   // Accept reading from the client
-  Read()
-  // Accept writing from the client
-  Write()
+  Run()
   // Enter client into messenger system
   Register()
   // Quit the client
@@ -22,74 +20,55 @@ type Requester interface {
 
 type requester struct {
   messenger     *messenger
-  conn          *websocket.Conn
+  socket        *comms.Socket
   responses     spinresp.ResponseChan
   quit          chan struct{}
 }
 
 // Create new Client interface of client struct
-func NewRequester(m *messenger, conn *websocket.Conn) Requester {
+func NewRequester(m *messenger, socket *comms.Socket) Requester {
   return &requester{
     messenger: m,
-    conn: conn,
+    socket: socket,
     quit: make(chan struct{}),
   }
 }
 
 // Get messages from the requester
-func (r *requester) Read() {
+func (r *requester) Run() {
   defer func(){
-    r.conn.Close()
+    (*r.socket).Close()
   }()
-  for {
-    var config dockercntrl.Config
-    err := r.conn.ReadJSON(&config)
-    if err != nil {
-      log.Println(err)
-      return
-    }
-    respchan := r.messenger.ContainerConnect(&config)
-    r.responses = respchan
-    go r.Write() // TODO: Must be idempotent
-  }
-}
-
-// Send messages to the requester.
-func (r *requester) Write() {
-  ticker := time.NewTicker(pingPeriod)
-  defer func(){
-    ticker.Stop()
-    r.conn.Close()
-  }()
+  read := (*r.socket).Reader()
+  write := (*r.socket).Writer()
   for {
     select {
-    case resp, ok := <- r.responses:
-      r.conn.SetWriteDeadline(time.Now().Add(writeWait))
-      if !ok {
-        r.conn.WriteMessage(websocket.CloseMessage, []byte{})
-        return
+    case config, ok := <- read:
+      log.Println("incoming")
+      log.Println(config)
+      if !ok {return}
+      // dockerconfig, ok := config.(dockercntrl.Config)
+      var dockerconfig dockercntrl.Config
+      mapstructure.Decode(config, &dockerconfig)
+      log.Println("inc2")
+      log.Println(dockerconfig)
+      dockerconfig.Cmd = []string{"echo", "hello"}
+      // if !ok {log.Println("fail"); return}
+      log.Println(dockerconfig)
+      respchan := r.messenger.ContainerConnect(&dockerconfig)
+      select{
+      case resp, ok := <- respchan:
+        if !ok {return}
+        write <- resp
       }
-      err := r.conn.WriteJSON(resp)
-      if err != nil {
-        log.Println(err)
-        r.conn.WriteMessage(websocket.CloseMessage, []byte{})
-        return
-      }
-    case <- ticker.C:
-      r.conn.SetWriteDeadline(time.Now().Add(writeWait))
-      if err := r.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-        log.Println(err)
-        return
-      }
-    case <- r.quit:
-      return
     }
   }
 }
 
 // Register requester
 func (r *requester) Register() {
-  go r.Read()
+  go r.Run()
+  log.Println("requester")
 }
 
 // Close the client connection

@@ -2,6 +2,7 @@ package spinner
 
 import (
   // "github.com/gorilla/websocket"
+  "github.com/open-nebula/comms"
   "net/http"
   "log"
 )
@@ -14,12 +15,12 @@ const (
 // On request adds client through the messenger
 func join(messenger *messenger) func(http.ResponseWriter, *http.Request) {
   return func(w http.ResponseWriter, r *http.Request) {
-    conn, err := messenger.upgrader.Upgrade(w,r,nil)
+    socket, err := comms.AcceptSocket(w,r)
     if err != nil {
       log.Println(err)
       return
     }
-    client := NewClient(messenger, conn)
+    client := NewClient(messenger, &socket)
     client.Register()
   }
 }
@@ -27,12 +28,12 @@ func join(messenger *messenger) func(http.ResponseWriter, *http.Request) {
 // Send a container to the messenger to pass on
 func spin(messenger *messenger) func(http.ResponseWriter, *http.Request) {
   return func(w http.ResponseWriter, r *http.Request) {
-    conn, err := messenger.upgrader.Upgrade(w,r,nil)
+    socket, err := comms.AcceptSocket(w,r)
     if err != nil {
       log.Println(err)
       return
     }
-    requester := NewRequester(messenger, conn)
+    requester := NewRequester(messenger, &socket)
     requester.Register()
   }
 }

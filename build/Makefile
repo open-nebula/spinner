@@ -5,3 +5,6 @@ build:
 
 run: build
 	docker run -it -p 5912:5912 $(IMAGE)
+
+test-send:
+	
