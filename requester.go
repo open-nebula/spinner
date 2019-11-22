@@ -41,6 +41,7 @@ func (r *requester) Run() {
     (*r.socket).Close()
   }()
   read := (*r.socket).Reader()
+  log.Println("Requester running")
   for {
     select {
     case config, ok := <- read:
@@ -67,8 +68,11 @@ func (r *requester) Register() {
   log.Println("Requester")
   var dockerconfig dockercntrl.Config
   (*r.socket).Start(dockerconfig)
+  log.Println("Started")
   r.self = r.handler.Requester.MakeInstance((*r.socket).Writer())
+  log.Println(r.self)
   r.handler.Requester.Register <- r.self
+  log.Println("Registered")
   go r.Run()
 }
 

@@ -56,18 +56,20 @@ func (h *Handler) run() {
     case request := <- h.Request:
       // Round-Robin, extract away to Schedule type
       log.Printf("Round Robin Scheduling\n")
-      minimum := 0
-      var chosen *uuid.UUID
+      minimum := -1
+      var chosen uuid.UUID
       for k,v := range h.clientMetaData {
-        if chosen == nil || v < minimum {
-          chosen = &k; minimum = v
+        log.Printf("%v - %v (min:%v)\n", k, v, minimum)
+        if (minimum == -1) || (v < minimum) {
+          chosen = k; minimum = v 
         }
       }
-      if chosen == nil {request.Success <- false; break}
+      if minimum == -1 {request.Success <- false; break}
+      h.clientMetaData[chosen]++
       log.Printf("Chosen: %+v\n", chosen)
       h.clients.Message <- &comms.Message{
         Success: request.Success,
-        Reciever: chosen,
+        Reciever: &chosen,
         Data: request.Task,
       }
     }
