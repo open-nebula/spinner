@@ -12,7 +12,7 @@ require (
 	github.com/gorilla/mux v1.7.3
 	github.com/gorilla/websocket v1.4.0
 	github.com/open-nebula/captain v0.0.0-20190913102608-40e04ae3037a
-	github.com/open-nebula/comms v0.0.0-20191108124959-31bee49f6864 // indirect
+	github.com/open-nebula/comms v0.0.0-20191121225953-aa161e63e5de // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2

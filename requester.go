@@ -4,7 +4,6 @@ import (
   "github.com/open-nebula/captain/dockercntrl"
   "github.com/open-nebula/spinner/spinresp"
   "github.com/open-nebula/comms"
-  "github.com/mitchellh/mapstructure"
   "log"
 )
 
@@ -19,18 +18,20 @@ type Requester interface {
 }
 
 type requester struct {
-  messenger     *messenger
+  handler       *Handler
   socket        *comms.Socket
   responses     spinresp.ResponseChan
   quit          chan struct{}
+  self          *comms.Instance
 }
 
 // Create new Client interface of client struct
-func NewRequester(m *messenger, socket *comms.Socket) Requester {
+func NewRequester(h *Handler, socket *comms.Socket) Requester {
   return &requester{
-    messenger: m,
+    handler: h,
     socket: socket,
     quit: make(chan struct{}),
+    self: nil,
   }
 }
 
@@ -40,35 +41,35 @@ func (r *requester) Run() {
     (*r.socket).Close()
   }()
   read := (*r.socket).Reader()
-  write := (*r.socket).Writer()
   for {
     select {
     case config, ok := <- read:
-      log.Println("incoming")
-      log.Println(config)
       if !ok {return}
-      // dockerconfig, ok := config.(dockercntrl.Config)
-      var dockerconfig dockercntrl.Config
-      mapstructure.Decode(config, &dockerconfig)
-      log.Println("inc2")
+      dockerconfig, ok := config.(*dockercntrl.Config)
+      if !ok {return}
       log.Println(dockerconfig)
-      dockerconfig.Cmd = []string{"echo", "hello"}
-      // if !ok {log.Println("fail"); return}
-      log.Println(dockerconfig)
-      respchan := r.messenger.ContainerConnect(&dockerconfig)
-      select{
-      case resp, ok := <- respchan:
-        if !ok {return}
-        write <- resp
-      }
+      log.Printf("%T\n", dockerconfig)
+      go func() {
+        log.Printf("Sending: %+v\n", dockerconfig)
+        success := r.handler.SendTask(r.self, dockerconfig)
+        if !success {
+          log.Printf("Failure: %+v\n", dockerconfig)
+        } else {
+          log.Printf("Success: %+v\n", dockerconfig)
+        }
+      }()
     }
   }
 }
 
 // Register requester
 func (r *requester) Register() {
+  log.Println("Requester")
+  var dockerconfig dockercntrl.Config
+  (*r.socket).Start(dockerconfig)
+  r.self = r.handler.Requester.MakeInstance((*r.socket).Writer())
+  r.handler.Requester.Register <- r.self
   go r.Run()
-  log.Println("requester")
 }
 
 // Close the client connection

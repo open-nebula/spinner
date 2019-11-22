@@ -17,19 +17,19 @@ type Server interface {
 
 type server struct {
   router    *mux.Router
-  messenger *messenger
+  handler   *Handler
 }
 
 // Produces a new Server interface of struct server
 func New() Server {
   router := mux.NewRouter().StrictSlash(true)
-  messenger := NewMessenger()
-  router.HandleFunc("/join", join(messenger)).Name("Join")
-  router.HandleFunc("/spin", spin(messenger)).Name("Spin")
-  go messenger.Run()
+  handler := NewHandler()
+  router.HandleFunc("/join", join(handler)).Name("Join")
+  router.HandleFunc("/spin", spin(handler)).Name("Spin")
+  handler.Start()
   return &server{
     router: router,
-    messenger: messenger,
+    handler: handler,
   }
 }
 

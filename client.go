@@ -17,31 +17,30 @@ type Client interface {
 }
 
 type client struct {
-  messenger     *messenger
+  handler       *Handler
   socket        *comms.Socket
-  spinup        chan message
-  responses     map[uuid.UUID]spinresp.ResponseChan
+  self          *comms.Instance
+  spinup        chan interface{}
+  responses     map[uuid.UUID]*uuid.UUID
   quit          chan struct{}
 }
 
-type clientPool   map[*client]bool
-type clientChan   chan *client
-
 // Create new Client interface of client struct
-func NewClient(m *messenger, socket *comms.Socket) Client {
+func NewClient(h *Handler, socket *comms.Socket) Client {
   return &client{
-    messenger: m,
+    handler: h,
     socket: socket,
-    spinup: make(chan message),
-    responses: make(map[uuid.UUID]spinresp.ResponseChan),
+    spinup: make(chan interface{}),
+    responses: make(map[uuid.UUID]*uuid.UUID),
     quit: make(chan struct{}),
+    self: nil,
   }
 }
 
 // Get messages from the client
 func (c *client) Run() {
   defer func(){
-    c.messenger.unregister <- c
+    c.handler.Unregister <- c.self
     (*c.socket).Close()
   }()
   read := (*c.socket).Reader()
@@ -50,30 +49,40 @@ func (c *client) Run() {
     select {
     case response, ok := <- read:
       if !ok {return}
-      resp, ok := response.(spinresp.Response)
+      resp, ok := response.(*spinresp.Response)
       if !ok {return}
-      if resp.Id != nil {return}
-      if respchan, ok := c.responses[*resp.Id]; ok {
-        respchan <- resp
-        if resp.Code < 0 {delete(c.responses, *resp.Id); return}
-      } else {return}
-    case message, ok := <- c.spinup:
-      if !ok {return}
-      if message.config.Id == nil {
-        identifier := uuid.New()
-        message.config.Id = &identifier
+      if resp.Id == nil {break}
+      if identifier, ok := c.responses[*resp.Id]; ok {
+        if resp.Code <= 0 {delete(c.responses, *resp.Id)}
+        go func() {
+          if !c.handler.Requester.SendMessage(identifier, resp) {
+            log.Printf("Failed: %+v\n", resp)
+          }
+        }()
       }
-      write <- message.config
-      c.responses[*message.config.Id] = message.response
+    case data, ok := <- c.spinup:
+      if !ok {break}
+      task, ok := data.(*Task)
+      if !ok {break}
+      if task.Config.Id == nil {
+        identifier := uuid.New()
+        task.Config.Id = &identifier
+      }
+      c.responses[*task.Config.Id] = task.From
+      write <- task.Config
     }
   }
 }
 
 // Register client with messenger and accept read/writes.
 func (c *client) Register() {
-  c.messenger.register <- c
+  var resp spinresp.Response
+  (*c.socket).Start(resp)
+  c.self = c.handler.Requester.MakeInstance(c.spinup)
+  c.handler.Register <- c.self
   go c.Run()
   log.Println("Client registered")
+
 }
 
 // Close the client connection
