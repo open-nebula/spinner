@@ -6,10 +6,10 @@ import (
   "github.com/google/uuid"
   "log"
 )
-
+// task scheduling request
 type Request struct {
-  Success  chan bool
-  Task     *Task
+  Success  chan bool  // scheduled or not
+  Task     *Task  // task meta data
 }
 
 type Task struct {
@@ -28,14 +28,14 @@ type Handler struct {
 
 func NewHandler() *Handler {
   h := &Handler{
-    clients: comms.NewMessenger(),
-    clientMetaData: make(map[uuid.UUID]int),
-    Requester: comms.NewMessenger(),
-    Register: make(chan *comms.Instance),
-    Unregister: make(chan *comms.Instance),
-    Request: make(chan *Request),
+    clients: comms.NewMessenger(),  // all captains'messenger
+    clientMetaData: make(map[uuid.UUID]int),  // captains data in handler (there is also one in messenger)
+    Requester: comms.NewMessenger(),  // ?
+    Register: make(chan *comms.Instance),  // captain register queue in handler (there is also one in messenger)
+    Unregister: make(chan *comms.Instance),  // unregister queue in handler (there is also one in messenger)
+    Request: make(chan *Request),  // task queue in handler (there is also one in messenger)
   }
-  h.clients.Start()
+  h.clients.Start()  // start captains'messenger loop
   h.Requester.Start()
   return h
 }
@@ -47,12 +47,14 @@ func (h *Handler) run() {
   for {
     log.Println("Handler Action")
     select {
+    // new captain registered
     case client := <- h.Register:
-      h.clientMetaData[*client.Id] = 0
-      h.clients.Register <- client
+      h.clientMetaData[*client.Id] = 0  // initialize this new captain
+      h.clients.Register <- client  // push into messenger's register queue
     case client := <- h.Unregister:
       delete(h.clientMetaData, *client.Id)
       h.clients.Unregister <- client
+    // new task is scheduled: select a random captain from map "clientMetaData"
     case request := <- h.Request:
       // Round-Robin, extract away to Schedule type
       log.Printf("Round Robin Scheduling\n")
@@ -67,6 +69,7 @@ func (h *Handler) run() {
       if minimum == -1 {request.Success <- false; break}
       h.clientMetaData[chosen]++
       log.Printf("Chosen: %+v\n", chosen)
+      // after random selection: push the task into messenger's scheduling queue
       h.clients.Message <- &comms.Message{
         Success: request.Success,
         Reciever: &chosen,
@@ -77,7 +80,7 @@ func (h *Handler) run() {
 }
 
 func (h *Handler) Start() {go h.run()}
-
+// after receive task from user, push the task into the Request queue in handler waiting for scheduling
 func (h *Handler) SendTask(from *comms.Instance, task *dockercntrl.Config) bool {
   response := make(chan bool)
   req := &Request{
@@ -88,6 +91,7 @@ func (h *Handler) SendTask(from *comms.Instance, task *dockercntrl.Config) bool 
     },
   }
   h.Request <- req
+  // block until the succ bool value is returned (after this task is pushed into the spinup queue!)
   status := <- response
   return status
 }
