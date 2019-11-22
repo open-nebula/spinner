@@ -22,7 +22,7 @@ type requester struct {
   socket        *comms.Socket
   responses     spinresp.ResponseChan
   quit          chan struct{}
-  self          *comms.Instance
+  self          *comms.Instance  // user instance
 }
 
 // Create new Client interface of client struct
